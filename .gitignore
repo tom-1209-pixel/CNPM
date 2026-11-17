@@ -1,0 +1,26 @@
+# Thư viện cài bằng npm
+node_modules/
+
+# Biến môi trường, bí mật
+.env
+.env.*
+
+# Công cụ, hệ điều hành, biên dịch
+.vs/
+.vscode/
+.idea/
+bin/
+obj/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+*.log
+
+# Tệp khóa tạm của Word khi đang mở tài liệu
+~$*
+
+# Tệp nén
+*.zip
+*.rar
+*.7z

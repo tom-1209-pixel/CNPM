@@ -1,0 +1,7 @@
+# Tự chuẩn hóa kết thúc dòng: file chữ luôn lưu bằng LF trong repo
+* text=auto eol=lf
+
+# File nhị phân: không đổi nội dung
+*.docx binary
+*.png binary
+*.jpg binary
