@@ -1,0 +1,192 @@
+:root {
+  --brand: #2563eb;
+  --brand-dark: #1e40af;
+  --brand-soft: #dbeafe;
+  --accent: #f97316;
+  --ok: #15803d;
+  --bg: #f5f8ff;
+  --surface: #fff;
+  --text: #0b1b3a;
+  --muted: #5b6b8c;
+  --border: #dbe4f5;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --shadow: 0 6px 18px rgba(30, 64, 175, .14);
+  --font: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+h1, h2, p { margin: 0; }
+svg.i { width: 1.15em; height: 1.15em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---------- Nút ---------- */
+button {
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, transform .05s, opacity .15s;
+}
+button:active:not(:disabled) { transform: scale(.97); }
+button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+button.primary:hover:not(:disabled) { background: var(--brand-dark); }
+button.outline { background: var(--surface); border-color: var(--brand); color: var(--brand); }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+button.big { min-height: 52px; font-size: 1.05rem; width: 100%; }
+button.icon { min-width: 40px; width: 40px; min-height: 40px; padding: 0; border-radius: 50%; }
+
+/* ---------- Màn chào ---------- */
+.welcome {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--brand) repeating-radial-gradient(circle at 50% 22%, transparent 0 26px, rgba(255, 255, 255, .10) 26px 27px);
+}
+.hero { color: #fff; text-align: center; padding: 52px 24px 28px; }
+.hero-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(255, 255, 255, .18); margin-bottom: 12px; font-size: 1.9rem;
+}
+.hero h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: 8px; }
+.hero p { opacity: .9; max-width: 320px; margin: 0 auto; }
+.card {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 28px 28px 0 0;
+  padding: 24px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .15);
+}
+.card h2 { font-size: .95rem; color: var(--muted); font-weight: 600; }
+.choices { display: flex; flex-direction: column; gap: 8px; }
+.choices button { justify-content: space-between; min-height: 52px; font-size: 1.05rem; text-align: left; }
+.choices button[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-dark); }
+.choices button[aria-pressed="true"]::after { content: "✓"; font-weight: 700; }
+.loading { color: var(--muted); text-align: center; padding: 12px 0; }
+.privacy { display: flex; gap: 6px; align-items: flex-start; justify-content: center; color: var(--muted); font-size: .82rem; text-align: left; }
+.privacy svg.i { margin-top: 2px; }
+
+.error {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
+  display: flex; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: #b91c1c; color: #fff; box-shadow: var(--shadow);
+}
+.error button { min-height: 36px; background: #fff; color: #b91c1c; border: 0; }
+
+/* ---------- Màn bản đồ: bản đồ phủ cả màn, thanh trên và thẻ điểm nổi lên trên ---------- */
+.map-screen { position: relative; height: 100dvh; overflow: hidden; }
+#map { position: absolute; inset: 0; background: #eaf0fa; }
+
+/* Lớp phủ để các nút nằm đè lên bản đồ nhưng vùng trống vẫn bấm xuyên xuống bản đồ (cần cho ?sim=1). */
+.overlay-top, .bottom {
+  position: absolute; left: 8px; right: 8px; margin-inline: auto; max-width: 560px; z-index: 1100;
+}
+.overlay-top { top: 8px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.overlay-top > * { pointer-events: auto; }
+
+.topbar {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  box-shadow: var(--shadow); padding: 8px 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brand { display: inline-flex; align-items: center; gap: 6px; color: var(--brand); font-size: 1.05rem; }
+.lang { min-height: 38px; background: var(--bg); border-color: transparent; padding: 0 12px; }
+
+.segmented { display: flex; flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg); }
+.segmented button { flex: 1; min-width: 0; min-height: 40px; padding: 0 6px; border: 0; border-radius: 0; background: transparent; font-size: .9rem; white-space: nowrap; }
+.segmented button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+
+.switch { min-height: 40px; padding: 0 10px 0 12px; font-size: .88rem; white-space: nowrap; gap: 8px; }
+.switch i { position: relative; width: 36px; height: 20px; border-radius: 10px; background: #cbd5e1; transition: background .15s; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.switch[aria-pressed="true"] i { background: var(--brand); }
+.switch[aria-pressed="true"] i::after { transform: translateX(16px); }
+
+.notices { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.chip { font-size: .82rem; padding: 6px 12px; border-radius: 999px; background: var(--surface); color: #075985; box-shadow: var(--shadow); }
+.chip.warn { background: #fef3c7; color: #92400e; }
+.chip.plain { color: var(--muted); }
+button.chip.sim { min-height: 0; border: 1px dashed var(--brand); color: var(--brand); font-weight: 600; }
+.banner { align-self: stretch; display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: var(--radius); }
+.arrived { background: var(--ok); color: #fff; font-weight: 700; box-shadow: var(--shadow); }
+.arrived button { min-height: 36px; background: #fff; color: #14532d; border: 0; }
+.degraded { background: #fef3c7; color: #92400e; font-size: .88rem; box-shadow: var(--shadow); }
+.degraded button { min-height: 36px; flex-shrink: 0; background: #fff; color: #92400e; border: 1px solid #f59e0b; }
+
+.bottom {
+  bottom: 8px; max-height: 52dvh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 24px; box-shadow: var(--shadow);
+}
+.strip { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.nav { background: var(--brand-soft); color: var(--brand-dark); }
+.nav #nav-text { flex: 1; font-weight: 700; }
+.nav .icon { background: #fff; border-color: transparent; color: var(--text); }
+.arrow { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 1.3rem; transition: transform .25s; }
+.playing { justify-content: space-between; background: #ffedd5; color: #9a3412; font-weight: 600; }
+.playing button { min-height: 36px; }
+
+.poi-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px; }
+.poi-list:not(:empty) { padding-top: 10px; padding-bottom: 4px; }
+.poi-list button { background: var(--surface); border-color: var(--brand); color: var(--brand); }
+.poi-list button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+
+.panel { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.panel h2 { font-size: 1.2rem; color: var(--brand); }
+.panel p { color: var(--muted); }
+.player { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.player button { padding: 0 4px; font-size: .82rem; white-space: nowrap; gap: 4px; }
+.actions { display: flex; gap: 8px; }
+.actions .outline { flex: 1; }
+
+/* ---------- Hộp chọn ngôn ngữ ---------- */
+dialog { border: 0; border-radius: 24px; padding: 20px; width: min(92vw, 380px); box-shadow: var(--shadow); font-family: var(--font); color: var(--text); }
+dialog::backdrop { background: rgba(11, 27, 58, .5); }
+dialog h2 { margin-bottom: 12px; font-size: 1.1rem; }
+dialog .actions { margin-top: 16px; }
+dialog .actions .primary { flex: 1; }
+
+/* ---------- Bản đồ ---------- */
+/* Đẩy nút phóng to và dòng ghi nguồn ra khỏi chỗ các thẻ nổi đang che (chiều cao do app.js đặt). */
+.leaflet-top { top: var(--top-h, 0px); }
+.leaflet-bottom { bottom: var(--bottom-h, 0px); }
+.leaflet-control-zoom a { width: 36px !important; height: 36px !important; line-height: 36px !important; }
+.leaflet-tooltip.poi-label {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px;
+  padding: 2px 10px; font: 600 .78rem/1.4 var(--font); box-shadow: 0 2px 6px rgba(11, 27, 58, .18); pointer-events: none;
+}
+.leaflet-tooltip-top.poi-label::before { display: none; }
+.poi-pin { color: var(--brand); filter: drop-shadow(0 2px 3px rgba(11, 27, 58, .35)); }
+.poi-pin svg { width: 30px; height: 38px; display: block; }
+.me-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--brand); border: 3px solid #fff; box-shadow: 0 0 0 0 rgba(37, 99, 235, .5); animation: pulse 2s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 16px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .me-dot { animation: none; }
+  .arrow, .switch i, .switch i::after { transition: none; }
+}
