@@ -1,0 +1,94 @@
+# Mỗi service có DB riêng (poi-db, content-db, analytics-db); gateway không kết nối DB nào.
+# Cổng 5433, 5434, 5435 mở ra máy dev để chạy service bằng npm start và chạy test DB (xem README.md).
+services:
+  poi-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: poi
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - poi-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d poi"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  content-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: content
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - content-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d content"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  analytics-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: analytics
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - analytics-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d analytics"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  poi-service:
+    build: ./poi-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@poi-db:5432/poi
+      ADMIN_PASSWORD: quanly
+    depends_on:
+      poi-db:
+        condition: service_healthy
+
+  content-service:
+    build: ./content-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@content-db:5432/content
+      ADMIN_PASSWORD: quanly
+    depends_on:
+      content-db:
+        condition: service_healthy
+
+  analytics-service:
+    build: ./analytics-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@analytics-db:5432/analytics
+      ADMIN_PASSWORD: quanly
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "3000:3000"
+    environment:
+      POI_SERVICE_URL: http://poi-service:3001
+      CONTENT_SERVICE_URL: http://content-service:3002
+      ANALYTICS_SERVICE_URL: http://analytics-service:3003
+      # Mật khẩu trang quản lý khi chạy bằng docker compose (chỉ dùng ở máy dev); 4 service phải trùng nhau
+      ADMIN_PASSWORD: quanly
+    depends_on:
+      - poi-service
+      - content-service
+      - analytics-service
+
+volumes:
+  poi-data:
+  content-data:
+  analytics-data:

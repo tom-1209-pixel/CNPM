@@ -1,0 +1,71 @@
+# Render Blueprint: tạo cả 3 service một lần (New → Blueprint → chọn repo này).
+# Gói Free không nhận được kết nối qua mạng nội bộ của Render (đã thử: gateway trả 502 ngay dù 2 service kia Live),
+# nên gateway gọi 2 service kia bằng địa chỉ công khai HTTPS. Gọi qua địa chỉ công khai cũng đánh thức service đang ngủ.
+services:
+  - type: web
+    name: poi-service
+    runtime: docker
+    rootDir: poi-service
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      # Chuỗi kết nối tới DB "poi" trên Neon. Nhập trên trang Render (Environment), không đưa vào repo.
+      - key: DATABASE_URL
+        sync: false
+      # Mật khẩu trang quản lý, trùng ở cả 4 service (service có địa chỉ công khai nên tự kiểm khi sửa điểm). Nhập trên trang Render, không đưa vào repo.
+      - key: ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: content-service
+    runtime: docker
+    rootDir: content-service
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      # Chuỗi kết nối tới DB "content" trên Neon. Nhập trên trang Render (Environment), không đưa vào repo.
+      - key: DATABASE_URL
+        sync: false
+      # Mật khẩu trang quản lý, trùng ở cả 4 service (service có địa chỉ công khai nên tự kiểm khi sửa nội dung, ngôn ngữ). Nhập trên trang Render, không đưa vào repo.
+      - key: ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: analytics-service
+    runtime: docker
+    rootDir: analytics-service
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      # Chuỗi kết nối tới DB "analytics" trên Neon. Nhập trên trang Render (Environment), không đưa vào repo.
+      - key: DATABASE_URL
+        sync: false
+      # Mật khẩu trang quản lý, trùng ở cả 4 service (số liệu và nhật ký đòi mật khẩu). Nhập trên trang Render, không đưa vào repo.
+      - key: ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: thuyet-minh
+    runtime: docker
+    rootDir: gateway
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      # Địa chỉ do Render cấp khi tạo service (xem ở trang của từng service). Tạo lại service thì phải sửa lại đây.
+      - key: POI_SERVICE_URL
+        value: https://poi-service.onrender.com
+      - key: CONTENT_SERVICE_URL
+        value: https://content-service-c1ci.onrender.com
+      - key: ANALYTICS_SERVICE_URL
+        value: https://analytics-service-3w1c.onrender.com
+      # Mật khẩu trang quản lý, trùng ở cả 4 service (trang /quan-ly.html). Nhập trên trang Render, không đưa vào repo.
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Gói miễn phí "ngủ" khi lâu không dùng; Render báo thức dậy có thể mất "50 giây hoặc hơn".
+      # Gateway thử lại trong suốt khoảng này (xem getJson trong gateway/src/app.js).
+      - key: UPSTREAM_TIMEOUT_MS
+        value: "60000"
