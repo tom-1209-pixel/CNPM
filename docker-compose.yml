@@ -1,5 +1,7 @@
 # Mỗi service có DB riêng (poi-db, content-db, analytics-db); gateway không kết nối DB nào.
-# Cổng 5433, 5434, 5435 mở ra máy dev để chạy service bằng npm start và chạy test DB (xem README.md).
+# Cổng 5433, 5434, 5435 (DB) và 3000 (gateway) chỉ mở cho chính máy này (127.0.0.1), không mở ra Wi-Fi/mạng LAN:
+# DB dùng mật khẩu mặc định "postgres". Chạy service bằng npm start và chạy test DB vẫn được (xem CLAUDE.md).
+# Demo cho người khác quét QR: dùng đường hầm Cloudflare tới localhost:3000 (xem CLAUDE.md, mục "Demo trên laptop").
 services:
   poi-db:
     image: postgres:16-alpine
@@ -7,7 +9,7 @@ services:
       POSTGRES_DB: poi
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - poi-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +24,7 @@ services:
       POSTGRES_DB: content
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - content-data:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +39,7 @@ services:
       POSTGRES_DB: analytics
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     volumes:
       - analytics-data:/var/lib/postgresql/data
     healthcheck:
@@ -50,7 +52,7 @@ services:
     build: ./poi-service
     environment:
       DATABASE_URL: postgres://postgres:postgres@poi-db:5432/poi
-      ADMIN_PASSWORD: quanly
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-quanly}
     depends_on:
       poi-db:
         condition: service_healthy
@@ -59,7 +61,7 @@ services:
     build: ./content-service
     environment:
       DATABASE_URL: postgres://postgres:postgres@content-db:5432/content
-      ADMIN_PASSWORD: quanly
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-quanly}
     depends_on:
       content-db:
         condition: service_healthy
@@ -68,7 +70,7 @@ services:
     build: ./analytics-service
     environment:
       DATABASE_URL: postgres://postgres:postgres@analytics-db:5432/analytics
-      ADMIN_PASSWORD: quanly
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-quanly}
     depends_on:
       analytics-db:
         condition: service_healthy
@@ -76,13 +78,14 @@ services:
   gateway:
     build: ./gateway
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       POI_SERVICE_URL: http://poi-service:3001
       CONTENT_SERVICE_URL: http://content-service:3002
       ANALYTICS_SERVICE_URL: http://analytics-service:3003
-      # Mật khẩu trang quản lý khi chạy bằng docker compose (chỉ dùng ở máy dev); 4 service phải trùng nhau
-      ADMIN_PASSWORD: quanly
+      # Mật khẩu trang quản lý: lấy từ biến môi trường hoặc file .env (không đưa vào git); không đặt thì là "quanly" (chỉ dùng ở máy dev,
+      # KHÔNG để mặc định khi mở ra Internet). 4 service phải trùng nhau
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-quanly}
     depends_on:
       - poi-service
       - content-service

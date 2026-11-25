@@ -5,7 +5,7 @@ import { createPool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 import { createStore } from '../src/store.js';
 
-// Chạy trên DB thật: chỉ khi có DATABASE_URL (CI luôn có; máy dev xem README.md, mục "Chạy kiểm thử").
+// Chạy trên DB thật: chỉ khi có DATABASE_URL (CI luôn có; máy dev xem CLAUDE.md, mục "Lệnh thường dùng").
 const url = process.env.DATABASE_URL;
 const skip = url ? false : 'cần DATABASE_URL trỏ tới DB analytics';
 

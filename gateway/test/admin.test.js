@@ -9,6 +9,7 @@ let pois;
 let contents;
 let languages;
 let changes;
+let audioFails = false;
 const servers = [];
 const listen = (app) => {
   const server = app.listen(0);
@@ -49,6 +50,14 @@ function contentApp() {
     contents = contents.filter((c) => !(c.poiId === item.poiId && c.lang === item.lang)).concat(item);
     res.json(item);
   });
+  // Âm thanh giả: tạo lại thì thêm cờ audio; audioFails = true thì service giọng đọc báo lỗi (502).
+  app.post('/content/audio/rebuild', (req, res) =>
+    res.json({ created: contents.filter((c) => !c.audio).map((c) => `${c.poiId}/${c.lang}`), failed: [] }));
+  app.post('/content/:poiId/:lang/audio', (req, res) => {
+    if (audioFails) return res.status(502).json({ error: 'Không tạo được âm thanh: edge-tts bị chặn' });
+    const item = contents.find((c) => c.poiId === req.params.poiId && c.lang === req.params.lang);
+    return item ? res.json({ ...item, audio: true }) : res.status(404).json({ error: 'Không có nội dung này' });
+  });
   app.delete('/content/:poiId', (req, res) => {
     contents = contents.filter((c) => c.poiId !== req.params.poiId);
     res.status(204).end();
@@ -88,6 +97,7 @@ beforeEach(() => {
   ];
   languages = [{ code: 'vi', name: 'Tiếng Việt', hidden: false }];
   changes = [];
+  audioFails = false;
 });
 after(() => servers.forEach((s) => s.close()));
 
@@ -163,4 +173,23 @@ test('GET /api/admin/status: service sống ghi ok kèm DB, service chết ghi d
 test('POST /api/events trả 202 ngay', async () => {
   const res = await fetch(`${base}/api/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(res.status, 202);
+});
+
+test('POST /api/admin/pois/:id/content/:lang/audio tạo lại âm thanh, ghi nhật ký; lỗi service giọng đọc trả 502 kèm lý do', async () => {
+  const res = await send('POST', '/pois/poi-1/content/vi/audio');
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).audio, true);
+  await until(() => changes.length === 1);
+  assert.deepEqual(changes[0], { action: 'Tạo âm thanh', target: 'poi-1', detail: 'vi' });
+  assert.equal((await send('POST', '/pois/poi-9/content/vi/audio')).status, 404);
+  assert.equal((await send('POST', '/pois/poi-1/content/vi/audio', null, '')).status, 401);
+  audioFails = true;
+  assert.equal((await send('POST', '/pois/poi-1/content/vi/audio')).status, 502);
+});
+
+test('POST /api/admin/audio/rebuild trả kết quả của content-service và ghi nhật ký', async () => {
+  contents[0].audio = true;
+  assert.deepEqual(await (await send('POST', '/audio/rebuild')).json(), { created: ['poi-1/en'], failed: [] });
+  await until(() => changes.length === 1);
+  assert.equal(changes[0].action, 'Tạo âm thanh');
 });

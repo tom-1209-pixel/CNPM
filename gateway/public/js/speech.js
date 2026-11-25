@@ -1,111 +1,40 @@
-import { voiceSupport, speechLang, pickVoice } from './voices.js';
+// Phát file mp3 thuyết minh (tạo sẵn ở content-service) bằng một thẻ <audio> duy nhất.
+// Một thẻ dùng chung cho mọi điểm: iPhone chỉ cho phát tiếng khi thẻ đã được "mở khóa" bằng một lần chạm.
+const audio = new Audio();
 
-const synth = 'speechSynthesis' in window && window.speechSynthesis ? window.speechSynthesis : null;
+// File wav im lặng 0 mẫu, chỉ để mở khóa âm thanh.
+const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
-// 'unsupported' | 'unknown' | 'ok' | 'missing' (xem voices.js).
-export function voiceStatus(lang) {
-  return voiceSupport(synth ? synth.getVoices() : null, lang);
+// Gọi trong lúc xử lý lần chạm (nút "Bắt đầu tham quan"): sau đó đổi src sang file thật vẫn tự phát được.
+export function unlockAudio() {
+  audio.src = SILENCE;
+  audio.play().catch(() => {});
 }
 
-// Mã ngôn ngữ của các giọng máy đang có (null nếu trình duyệt không có giọng đọc). Dùng cho dòng chẩn đoán ở ?sim=1.
-export function voiceList() {
-  return synth ? synth.getVoices().map((v) => v.lang) : null;
-}
-
-// Tên giọng sẽ dùng cho ngôn ngữ này (null nếu danh sách không có): cho dòng chẩn đoán ở ?sim=1.
-export function voiceName(lang) {
-  return synth ? pickVoice(synth.getVoices(), lang)?.name ?? null : null;
-}
-
-// Safari cũ: speechSynthesis không có addEventListener (gọi là lỗi, cả trang dừng). Khi đó dùng onvoiceschanged.
-const voiceListeners = new Set();
-if (synth && typeof synth.addEventListener === 'function') {
-  synth.addEventListener('voiceschanged', () => voiceListeners.forEach((cb) => cb()));
-} else if (synth) {
-  synth.onvoiceschanged = () => voiceListeners.forEach((cb) => cb());
-}
-
-// Danh sách giọng nạp bất đồng bộ: đợi voiceschanged, tối đa 4 giây (Android thường chậm).
-export function voicesReady() {
-  if (!synth || synth.getVoices().length > 0) return Promise.resolve();
-  return new Promise((resolve) => {
-    const done = () => {
-      voiceListeners.delete(done);
-      resolve();
-    };
-    voiceListeners.add(done);
-    setTimeout(done, 4000);
-  });
-}
-
-// Danh sách giọng có thể về muộn hơn cả thời gian chờ ở trên: báo lại mỗi lần nó thay đổi.
-export function onVoicesChanged(callback) {
-  voiceListeners.add(callback);
-}
-
-// iPhone chặn âm thanh tự phát nếu chưa có lần chạm nào: đọc một câu rỗng trong lúc bấm nút.
-export function unlockSpeech() {
-  if (synth) synth.speak(new SpeechSynthesisUtterance(''));
-}
-
-// Đọc lần lượt từng câu. state: 'idle' | 'playing' | 'paused'.
-// onError nhận mã lỗi khi máy không đọc được (ví dụ 'language-unavailable').
+// state: 'idle' | 'playing' | 'paused'. onError nhận mã lỗi khi không phát được:
+// 'not-allowed' (trình duyệt chặn tự phát khi chưa chạm màn hình), 'media-N' (file lỗi hoặc tải không được), tên lỗi khác;
+// kèm mã điểm đang phát lúc lỗi.
 export function createPlayer(onChange, onError) {
   let poiId = null;
-  let sentences = [];
-  let index = 0;
-  let lang = 'vi';
   let state = 'idle';
   let token = 0;
-  let current = null; // giữ câu đang đọc: Chrome có thể dọn mất utterance nên onend không bao giờ chạy
-  let lastError = null; // mã lỗi đọc gần nhất, để chẩn đoán
-
-  // Chỉ cancel khi đang có câu đọc: Chrome Android đôi khi nuốt mất câu speak() gọi ngay sau cancel().
-  function stopSynth() {
-    if (!synth || !(synth.speaking || synth.pending || synth.paused)) return false;
-    synth.cancel();
-    return true;
-  }
+  let lastError = null; // mã lỗi gần nhất, để chẩn đoán
 
   function reset() {
     token++;
-    stopSynth();
-    current = null;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.pause();
     poiId = null;
-    sentences = [];
-    index = 0;
     state = 'idle';
   }
 
-  function speakCurrent() {
-    const myToken = ++token;
-    // Vừa cancel thì đợi một chút rồi mới speak (cùng lý do ở stopSynth).
-    const delay = stopSynth() ? 120 : 0;
-    const utterance = new SpeechSynthesisUtterance(sentences[index]);
-    const voice = pickVoice(synth.getVoices(), lang);
-    if (voice) utterance.voice = voice;
-    utterance.lang = voice ? voice.lang : speechLang(lang);
-    utterance.onend = () => {
-      if (myToken !== token) return;
-      index++;
-      if (index < sentences.length) {
-        speakCurrent();
-      } else {
-        reset();
-        onChange();
-      }
-    };
-    utterance.onerror = (event) => {
-      if (myToken !== token) return; // lỗi của câu đã bị chính trang hủy (đổi bài, dừng)
-      lastError = event.error;
-      reset();
-      onChange();
-      if (onError) onError(event.error);
-    };
-    current = utterance;
-    setTimeout(() => {
-      if (myToken === token) synth.speak(current);
-    }, delay);
+  function fail(code) {
+    const id = poiId;
+    lastError = code;
+    reset();
+    onChange();
+    onError(code, id);
   }
 
   return {
@@ -118,35 +47,38 @@ export function createPlayer(onChange, onError) {
     get lastError() {
       return lastError;
     },
-    play(id, newSentences, newLang) {
+    play(id, url) {
       reset();
-      if (!synth || newSentences.length === 0) return onChange();
+      if (!url) return onChange();
+      const myToken = token;
       poiId = id;
-      sentences = newSentences;
-      lang = newLang;
       state = 'playing';
-      speakCurrent();
-      onChange();
+      audio.onended = () => {
+        reset();
+        onChange();
+      };
+      audio.onerror = () => {
+        if (myToken === token) fail(`media-${audio.error?.code ?? 0}`);
+      };
+      audio.src = url;
+      audio.play().catch((err) => {
+        if (myToken === token) fail(err.name === 'NotAllowedError' ? 'not-allowed' : err.name);
+      });
+      return onChange();
     },
     pause() {
       if (state !== 'playing') return;
+      audio.pause();
       state = 'paused';
-      if (typeof synth.pause === 'function') {
-        synth.pause();
-      } else {
-        token++; // máy không hỗ trợ pause: dừng, lúc tiếp tục sẽ đọc lại từ câu hiện tại
-        stopSynth();
-      }
       onChange();
     },
     resume() {
       if (state !== 'paused') return;
+      const myToken = token;
       state = 'playing';
-      if (typeof synth.resume === 'function' && synth.paused) {
-        synth.resume();
-      } else {
-        speakCurrent();
-      }
+      audio.play().catch((err) => {
+        if (myToken === token) fail(err.name === 'NotAllowedError' ? 'not-allowed' : err.name);
+      });
       onChange();
     },
     stop() {

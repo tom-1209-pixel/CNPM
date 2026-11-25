@@ -9,9 +9,9 @@ const pois = [
   { id: 'poi-3', lat: 10.3, lng: 106.3, radius: 30 },
 ];
 const content = [
-  { poiId: 'poi-1', lang: 'vi', title: 'Điểm 1', text: 'Nội dung 1.' },
-  { poiId: 'poi-1', lang: 'en', title: 'Stop 1', text: 'Content 1.' },
-  { poiId: 'poi-2', lang: 'vi', title: 'Điểm 2', text: 'Nội dung 2.' },
+  { poiId: 'poi-1', lang: 'vi', title: 'Điểm 1', text: 'Nội dung 1.', audio: true },
+  { poiId: 'poi-1', lang: 'en', title: 'Stop 1', text: 'Content 1.', audio: true },
+  { poiId: 'poi-2', lang: 'vi', title: 'Điểm 2', text: 'Nội dung 2.', audio: false }, // chưa có mp3
 ];
 const languages = [{ code: 'vi', name: 'Tiếng Việt' }, { code: 'en', name: 'English' }];
 
@@ -54,8 +54,8 @@ test('GET /api/languages chuyển tiếp danh sách ngôn ngữ', async () => {
 
 test('GET /api/pois?lang=vi ghép tọa độ và nội dung', async () => {
   assert.deepEqual(await getPois('?lang=vi'), [
-    { ...pois[0], title: 'Điểm 1', text: 'Nội dung 1.' },
-    { ...pois[1], title: 'Điểm 2', text: 'Nội dung 2.' },
+    { ...pois[0], title: 'Điểm 1', text: 'Nội dung 1.', audioUrl: '/api/audio/poi-1/vi' },
+    { ...pois[1], title: 'Điểm 2', text: 'Nội dung 2.', audioUrl: null },
   ]);
 });
 
@@ -63,6 +63,41 @@ test('lang=en: POI thiếu bản en thì lấy bản vi của chính POI đó', 
   const result = await getPois('?lang=en');
   assert.equal(result[0].title, 'Stop 1');
   assert.equal(result[1].title, 'Điểm 2');
+});
+
+test('audioUrl theo ngôn ngữ thực tế được dùng: thiếu bản en thì chữ và âm thanh đều của bản vi', async () => {
+  const result = await getPois('?lang=en');
+  assert.equal(result[0].audioUrl, '/api/audio/poi-1/en');
+  assert.equal(result[1].audioUrl, null, 'poi-2 dùng bản vi, bản vi chưa có mp3');
+});
+
+test('GET /api/audio chuyển tiếp mp3, hỗ trợ ETag (304) và Range (206); chưa có thì 404', async () => {
+  const mp3 = Buffer.from('0123456789');
+  const contentApp = express();
+  contentApp.get('/content/:poiId/:lang/audio', (req, res) => {
+    if (req.params.poiId !== 'poi-1') return res.status(404).json({ error: 'Chưa có âm thanh' });
+    res.set({ 'Content-Type': 'audio/mpeg', ETag: '"abc"' });
+    return req.get('If-None-Match') === '"abc"' ? res.status(304).end() : res.send(mp3);
+  });
+  const app = listen(createApp({ poiServiceUrl: deadUrl(), contentServiceUrl: listen(contentApp), timeoutMs: 300, retryDelayMs: 50 }));
+  const res = await fetch(`${app}/api/audio/poi-1/vi`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'audio/mpeg');
+  assert.equal(res.headers.get('etag'), '"abc"');
+  assert.deepEqual(Buffer.from(await res.arrayBuffer()), mp3);
+  assert.equal((await fetch(`${app}/api/audio/poi-1/vi`, { headers: { 'If-None-Match': '"abc"' } })).status, 304);
+  const part = await fetch(`${app}/api/audio/poi-1/vi`, { headers: { Range: 'bytes=2-5' } });
+  assert.equal(part.status, 206);
+  assert.equal(part.headers.get('content-range'), 'bytes 2-5/10');
+  assert.equal(Buffer.from(await part.arrayBuffer()).toString(), '2345');
+  assert.equal((await fetch(`${app}/api/audio/poi-1/vi`, { headers: { Range: 'bytes=0-' } })).status, 206);
+  assert.equal((await fetch(`${app}/api/audio/poi-1/vi`, { headers: { Range: 'bytes=50-60' } })).status, 416);
+  assert.equal((await fetch(`${app}/api/audio/poi-2/vi`)).status, 404);
+});
+
+test('GET /api/audio: content-service hỏng thì 502', async () => {
+  const app = listen(createApp({ poiServiceUrl: deadUrl(), contentServiceUrl: deadUrl(), timeoutMs: 300, retryDelayMs: 50 }));
+  assert.equal((await fetch(`${app}/api/audio/poi-1/vi`)).status, 502);
 });
 
 test('POI không có cả bản vi thì bị bỏ khỏi kết quả', async () => {
@@ -107,8 +142,8 @@ test('poi-service hỏng: vẫn trả nội dung các POI có bản vi, không c
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('x-degraded'), 'poi-service');
   assert.deepEqual(await res.json(), [
-    { id: 'poi-1', title: 'Stop 1', text: 'Content 1.' },
-    { id: 'poi-2', title: 'Điểm 2', text: 'Nội dung 2.' },
+    { id: 'poi-1', title: 'Stop 1', text: 'Content 1.', audioUrl: '/api/audio/poi-1/en' },
+    { id: 'poi-2', title: 'Điểm 2', text: 'Nội dung 2.', audioUrl: null },
   ]);
 });
 

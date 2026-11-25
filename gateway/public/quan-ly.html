@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="robots" content="noindex">
+  <title>Quản lý thuyết minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="stats.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-page">
+  <!-- Biểu tượng dùng chung (thẻ <use href="#i-…">) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18M6 16v-5M11 16V6M16 16v-8M21 16v-3"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9.5 9.5 0 0 1 0 13"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  </svg>
+
+  <!-- Đăng nhập. onsubmit tạm chặn gửi form khi admin.js chưa nạp xong (mạng chậm); admin.js gán lại onsubmit -->
+  <main id="login-screen" class="login-screen">
+    <form id="login" class="login-card" onsubmit="return false">
+      <div class="brand-mark big"><svg class="i"><use href="#i-sound"/></svg></div>
+      <h1>Quản lý thuyết minh</h1>
+      <p class="muted">Điểm tham quan, ngôn ngữ, thống kê, trạng thái hệ thống và nhật ký thay đổi.</p>
+      <label for="password">Mật khẩu quản lý</label>
+      <div class="input-icon">
+        <svg class="i"><use href="#i-lock"/></svg>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="primary big" type="submit">Vào trang quản lý</button>
+      <p id="login-error" class="stats-error" role="alert" hidden></p>
+      <a class="login-link" href="/" target="_blank" rel="noopener">Mở trang du khách <svg class="i"><use href="#i-external"/></svg></a>
+    </form>
+  </main>
+
+  <div id="app" class="shell" hidden>
+    <aside class="sidebar">
+      <div class="side-brand">
+        <div class="brand-mark"><svg class="i"><use href="#i-sound"/></svg></div>
+        <div class="brand-text"><strong>Thuyết minh</strong><span>Trang quản lý</span></div>
+      </div>
+      <nav class="side-nav" role="tablist" aria-label="Mục quản lý">
+        <button type="button" role="tab" data-tab="diem"><svg class="i"><use href="#i-pin"/></svg><span class="full">Điểm tham quan</span><span class="short">Điểm</span></button>
+        <button type="button" role="tab" data-tab="ngon-ngu"><svg class="i"><use href="#i-globe"/></svg><span>Ngôn ngữ</span></button>
+        <button type="button" role="tab" data-tab="thong-ke"><svg class="i"><use href="#i-chart"/></svg><span>Thống kê</span></button>
+        <button type="button" role="tab" data-tab="he-thong"><svg class="i"><use href="#i-server"/></svg><span>Hệ thống</span></button>
+        <button type="button" role="tab" data-tab="nhat-ky"><svg class="i"><use href="#i-list"/></svg><span>Nhật ký</span></button>
+      </nav>
+      <div class="sidebar-foot">
+        <a class="side-link" href="/" target="_blank" rel="noopener"><svg class="i"><use href="#i-external"/></svg><span>Trang du khách</span></a>
+        <button id="btn-logout" type="button" class="side-link"><svg class="i"><use href="#i-logout"/></svg><span class="full">Đăng xuất</span><span class="short">Thoát</span></button>
+      </div>
+    </aside>
+
+    <main class="main stats">
+      <p id="toast" class="toast" role="status" hidden></p>
+
+      <!-- Điểm tham quan -->
+      <section id="tab-diem" class="tab-panel tab-full" hidden>
+        <header class="page-head">
+          <div>
+            <h1>Điểm tham quan</h1>
+            <p class="muted">Bấm lên bản đồ để thêm điểm, kéo ghim để dời.</p>
+          </div>
+          <div class="page-actions">
+            <button id="btn-my-location" type="button"><svg class="i"><use href="#i-locate"/></svg>Dùng vị trí của tôi</button>
+            <button id="btn-shift" type="button"><svg class="i"><use href="#i-move"/></svg>Dời cả bộ điểm tới chỗ tôi</button>
+            <button id="btn-preview" type="button" class="ghost"><svg class="i"><use href="#i-eye"/></svg>Xem như du khách</button>
+          </div>
+        </header>
+        <div class="poi-editor">
+          <div id="admin-map" class="admin-map"></div>
+          <aside id="poi-side" class="poi-side card">
+            <div id="poi-browse" class="side-browse">
+              <div class="side-head">
+                <h2>Danh sách điểm</h2>
+                <span id="poi-count" class="pill"></span>
+              </div>
+              <ul id="poi-list" class="poi-items"></ul>
+              <p class="side-hint"><svg class="i"><use href="#i-plus"/></svg>Bấm lên bản đồ để thêm điểm mới</p>
+            </div>
+            <form id="poi-form" class="poi-form" hidden>
+              <div class="form-head">
+                <div>
+                  <h2 id="poi-form-title"></h2>
+                  <span id="poi-form-sub" class="muted"></span>
+                </div>
+                <button id="btn-cancel" type="button" class="icon ghost" aria-label="Đóng, về danh sách"><svg class="i"><use href="#i-close"/></svg></button>
+              </div>
+              <div class="form-body">
+                <div class="form-section">
+                  <h3>Vị trí</h3>
+                  <div class="form-row">
+                    <label>Vĩ độ <input id="f-lat" type="number" step="any" required></label>
+                    <label>Kinh độ <input id="f-lng" type="number" step="any" required></label>
+                  </div>
+                  <div class="form-row">
+                    <label>Bán kính (m) <input id="f-radius" type="number" min="0" step="1" required></label>
+                    <label class="toggle"><input id="f-hidden" type="checkbox"><span class="toggle-track"></span>Ẩn khỏi trang du khách</label>
+                  </div>
+                </div>
+                <div class="form-section">
+                  <h3>Tên điểm</h3>
+                  <label>Tên điểm (Tiếng Việt) <input id="f-title" maxlength="200" required></label>
+                  <label id="f-text-wrap">Nội dung thuyết minh (Tiếng Việt) <textarea id="f-text" maxlength="5000"></textarea></label>
+                  <p id="f-lang-note" class="note">Nội dung từng ngôn ngữ và âm thanh sửa ở mục <a href="#ngon-ngu" id="f-goto-lang">Ngôn ngữ</a>.</p>
+                </div>
+                <p id="poi-error" class="form-error" role="alert" hidden></p>
+              </div>
+              <div class="form-actions">
+                <button class="primary" type="submit"><svg class="i"><use href="#i-check"/></svg>Lưu</button>
+                <button id="btn-delete" type="button" class="danger"><svg class="i"><use href="#i-trash"/></svg>Xóa điểm</button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Ngôn ngữ -->
+      <section id="tab-ngon-ngu" class="tab-panel" hidden>
+        <header class="page-head">
+          <div>
+            <h1>Ngôn ngữ</h1>
+            <p class="muted">Bấm "Sửa nội dung" ở một ngôn ngữ để sửa tên, nội dung và âm thanh của các điểm bằng ngôn ngữ đó. Ngôn ngữ ẩn không hiện cho du khách nhưng vẫn nhập nội dung trước được. Không ẩn được Tiếng Việt.</p>
+          </div>
+          <div class="page-actions">
+            <button id="btn-rebuild-audio" type="button"><svg class="i"><use href="#i-sound"/></svg>Tạo âm thanh còn thiếu</button>
+          </div>
+        </header>
+        <div class="card table-card">
+          <table class="admin-table">
+            <thead><tr><th>Mã</th><th title="Viết bằng chính ngôn ngữ đó, ví dụ English, 中文">Tên</th><th>Ẩn</th><th class="lang-count">Nội dung</th><th></th></tr></thead>
+            <tbody id="lang-rows"></tbody>
+          </table>
+        </div>
+        <section id="lang-editor" class="card lang-editor" hidden>
+          <div class="side-head">
+            <div>
+              <h2 id="lang-editor-title"></h2>
+              <span id="lang-editor-sub" class="muted"></span>
+            </div>
+            <button id="lang-editor-close" type="button" class="icon ghost" aria-label="Đóng"><svg class="i"><use href="#i-close"/></svg></button>
+          </div>
+          <div id="lang-editor-list" class="lang-editor-list"></div>
+        </section>
+        <form id="lang-form" class="card lang-form">
+          <h2 class="card-title">Thêm ngôn ngữ</h2>
+          <div class="lang-form-row">
+            <input id="lang-code" placeholder="Mã, ví dụ zh" maxlength="10" required>
+            <input id="lang-name" placeholder="Tên, ví dụ 中文" maxlength="50" required>
+            <button class="primary" type="submit"><svg class="i"><use href="#i-plus"/></svg>Thêm</button>
+          </div>
+          <p id="lang-error" class="form-error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <!-- Thống kê -->
+      <section id="tab-thong-ke" class="tab-panel" hidden>
+        <header class="page-head">
+          <div>
+            <h1>Thống kê</h1>
+            <p class="muted">Lượt truy cập ẩn danh, cập nhật trực tiếp mỗi 5 giây.</p>
+          </div>
+        </header>
+        <div class="tiles">
+          <div class="tile tile-live"><span class="tile-label">Đang online</span><strong id="t-online">–</strong><span class="tile-note">đang mở trang</span></div>
+          <div class="tile"><span class="tile-label">Hôm nay</span><strong id="t-today">–</strong><span class="tile-note">lượt</span></div>
+          <div class="tile"><span class="tile-label">30 ngày qua</span><strong id="t-30">–</strong><span class="tile-note">lượt</span></div>
+          <div class="tile"><span class="tile-label">Thời gian trung bình</span><strong id="t-avg">–</strong><span class="tile-note">phút mỗi lượt</span></div>
+        </div>
+        <div class="log card">
+          <div class="log-toolbar">
+            <select id="range" aria-label="Khoảng thời gian">
+              <option value="1h">1 giờ qua</option>
+              <option value="today" selected>Hôm nay</option>
+              <option value="7d">7 ngày qua</option>
+              <option value="30d">30 ngày qua</option>
+            </select>
+            <input id="search" type="search" placeholder="Tìm theo ngôn ngữ hoặc mã lượt" aria-label="Tìm lượt">
+            <span id="live" class="live">● Trực tiếp</span>
+          </div>
+          <div class="log-meta">
+            <span id="count" class="muted"></span>
+            <span id="updated" class="muted"></span>
+          </div>
+          <div id="log-list" class="log-list" role="log" aria-live="polite"></div>
+        </div>
+        <div class="card table-card">
+          <h2 class="card-title">Theo điểm <span class="muted">(trong khoảng đang chọn)</span></h2>
+          <table class="admin-table">
+            <thead><tr><th>Điểm</th><th>Mở thẻ</th><th>Nghe</th></tr></thead>
+            <tbody id="by-poi"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Hệ thống -->
+      <section id="tab-he-thong" class="tab-panel" hidden>
+        <header class="page-head">
+          <div>
+            <h1>Hệ thống</h1>
+            <p id="system-updated" class="muted"></p>
+          </div>
+          <div class="page-actions">
+            <button id="btn-wake" type="button" class="primary"><svg class="i"><use href="#i-zap"/></svg>Đánh thức tất cả</button>
+          </div>
+        </header>
+        <div id="system-rows" class="service-grid"></div>
+        <p class="note">Gói Free của Render cho service ngủ sau khoảng 15 phút không ai dùng; "Không phản hồi" thường là đang ngủ. Bấm "Đánh thức tất cả" rồi chờ khoảng 15 giây.</p>
+      </section>
+
+      <!-- Nhật ký -->
+      <section id="tab-nhat-ky" class="tab-panel" hidden>
+        <header class="page-head">
+          <div>
+            <h1>Nhật ký</h1>
+            <p class="muted">200 thay đổi gần nhất, mới nhất trước.</p>
+          </div>
+          <div class="page-actions">
+            <button id="btn-log-refresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Làm mới</button>
+          </div>
+        </header>
+        <div class="card table-card">
+          <table class="admin-table">
+            <thead><tr><th>Lúc</th><th>Hành động</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead>
+            <tbody id="change-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

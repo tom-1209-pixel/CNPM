@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import pg from 'pg';
 
 // Kiểm tra chéo dữ liệu của 2 service. Hai DB tách riêng nên không có khóa ngoại giữa chúng: test này thay cho khóa ngoại.
-// Chỉ chạy khi có địa chỉ cả 2 DB (CI luôn có; máy dev xem README.md, mục "Chạy kiểm thử").
+// Chỉ chạy khi có địa chỉ cả 2 DB (CI luôn có; máy dev xem CLAUDE.md, mục "Lệnh thường dùng").
 const poiUrl = process.env.POI_DATABASE_URL;
 const contentUrl = process.env.CONTENT_DATABASE_URL;
 const skip = poiUrl && contentUrl ? false : 'cần POI_DATABASE_URL và CONTENT_DATABASE_URL';

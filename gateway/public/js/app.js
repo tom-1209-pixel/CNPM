@@ -1,7 +1,5 @@
 import { distanceMeters, bearingDegrees, isInside, isAccurateEnough } from './geo.js';
-import { splitSentences } from './text.js';
-import { createPlayer, voiceStatus, voiceList, voiceName, voicesReady, onVoicesChanged, unlockSpeech } from './speech.js';
-import { NO_VOICE_ERRORS, voiceListIsComplete, shouldSwitchToRead } from './voices.js';
+import { createPlayer, unlockAudio } from './speech.js';
 import { addBaseMap } from './basemap.js';
 import { wakeServices } from './wake.js';
 
@@ -19,11 +17,11 @@ const state = {
   pos: null, // { lat, lng, accuracy }
   geoDenied: false,
   geoError: '', // lời hướng dẫn khi chưa lấy được vị trí (GPS tắt, quá thời gian)
-  modeBeforeNoVoice: null, // hình thức trước khi tự chuyển sang "Đọc" vì thiếu giọng, để trả lại khi giọng xuất hiện
   panelId: null,
   destId: null,
   arrivedId: null,
   played: new Set(), // POI đã tự phát một lần
+  audioBroken: new Set(), // POI có file âm thanh nhưng tải hoặc phát lỗi: chỉ còn hiện chữ
   notice: '',
   tilesFailed: false,
   degraded: null, // service đang hỏng theo gateway (header X-Degraded): 'content-service' | 'poi-service' | null
@@ -31,14 +29,16 @@ const state = {
 
 const player = createPlayer(
   () => render(),
-  (error) => {
-    if (NO_VOICE_ERRORS.has(error)) {
-      switchToRead('missing', error);
-    } else if (error === 'not-allowed') {
-      // Một số máy chặn tự đọc khi chưa chạm màn hình: không đổi hình thức, chỉ nhắc bấm Phát.
-      state.notice = 'Trình duyệt chặn tự đọc khi chưa chạm màn hình. Bấm "Phát" để nghe.';
-      render();
+  (error, id) => {
+    if (error === 'not-allowed') {
+      // Một số máy chặn tự phát khi chưa chạm màn hình: chỉ nhắc bấm Phát.
+      state.notice = 'Trình duyệt chặn tự phát âm thanh khi chưa chạm màn hình. Bấm "Phát" để nghe.';
+    } else {
+      // File lỗi hoặc mất mạng: điểm này chỉ còn hiện chữ, các điểm khác vẫn nghe bình thường.
+      state.audioBroken.add(id);
+      state.notice = `Không phát được âm thanh của điểm này (mã lỗi: ${error}). Bạn vẫn đọc được nội dung.`;
     }
+    render();
   },
 );
 let chosenLang = 'vi';
@@ -217,55 +217,8 @@ async function reloadPois() {
 }
 $('degraded-retry').onclick = reloadPois;
 
-const NO_VOICE_TEXT = {
-  unsupported: 'Trình duyệt này không có giọng đọc. Hãy mở trang bằng Chrome hoặc Safari.',
-  missing:
-    'Máy chưa có giọng đọc cho ngôn ngữ này nên đã chuyển sang hình thức "Đọc". Có thể cài thêm giọng trong Cài đặt → Chuyển văn bản thành giọng nói.',
-  missingApple:
-    'Máy này không có giọng đọc cho ngôn ngữ này nên đã chuyển sang hình thức "Đọc". iPhone, iPad chỉ đọc được bằng giọng có trong Cài đặt → Trợ năng → Nội dung được đọc → Giọng nói.',
-};
-
-// Không có giọng cho ngôn ngữ đang chọn thì báo và chuyển sang "Đọc"; nhớ hình thức cũ để trả lại khi giọng xuất hiện.
-// errorCode: mã lỗi trình duyệt trả về khi đọc (ghi kèm thông báo để biết lỗi thật là gì).
-function switchToRead(reason, errorCode) {
-  if (state.mode !== 'read') {
-    state.modeBeforeNoVoice = state.mode;
-    state.mode = 'read';
-    player.stop();
-  }
-  state.notice = errorCode ? `${NO_VOICE_TEXT[reason]} (mã lỗi: ${errorCode})` : NO_VOICE_TEXT[reason];
-  render();
-}
-
-// Chuyển ngay sang "Đọc" khi trình duyệt không có giọng đọc nào, hoặc máy Apple không có giọng cho ngôn ngữ này.
-// Android: danh sách giọng thiếu ngôn ngữ này ('missing') hoặc trống ('unknown') chưa kết luận: nhiều máy Samsung
-// chỉ liệt kê giọng của bộ đọc Samsung mà bộ đọc Google vẫn đọc được tiếng Việt. Vẫn thử đọc; đọc báo lỗi thiếu
-// giọng thì mới chuyển (createPlayer ở trên).
-const APPLE_VOICES = voiceListIsComplete(navigator.vendor);
-function applyVoiceStatus() {
-  const status = voiceStatus(state.lang);
-  if (shouldSwitchToRead(status, APPLE_VOICES)) {
-    // Người dùng tự chọn "Đọc" thì không cần giọng, không báo gì.
-    if (state.mode !== 'read' || state.modeBeforeNoVoice) switchToRead(status === 'missing' ? 'missingApple' : status);
-  } else if (status === 'ok' && state.modeBeforeNoVoice) {
-    state.mode = state.modeBeforeNoVoice;
-    state.modeBeforeNoVoice = null;
-    state.notice = '';
-  }
-  render();
-}
-
-async function checkVoice() {
-  await voicesReady();
-  applyVoiceStatus();
-}
-
-onVoicesChanged(() => {
-  if (map) applyVoiceStatus();
-});
-
 $('btn-start').onclick = async () => {
-  unlockSpeech();
+  unlockAudio();
   // Máy chủ gói Free đang "ngủ" có thể cần tới 1 phút để trả lời: báo đang tải thay vì để nút đứng im.
   const startButton = $('btn-start');
   startButton.disabled = true;
@@ -283,7 +236,6 @@ $('btn-start').onclick = async () => {
   requestWakeLock();
   startVisit();
   render();
-  checkVoice();
 };
 
 $('btn-lang').onclick = () => {
@@ -313,7 +265,6 @@ async function applyLang(code) {
   if (visitStarted) sendVisit(`/api/visits/${visitId}/ping`, { lang: code });
   state.notice = '';
   render();
-  checkVoice();
 }
 
 // ---------- Bản đồ ----------
@@ -448,19 +399,22 @@ function evaluate() {
 }
 
 // Vào điểm mới thì luôn chuyển sang điểm đó: đang nghe điểm khác thì dừng điểm cũ (player.play tự dừng) rồi phát điểm mới.
-// Muốn nghe lại điểm cũ thì bấm điểm đó trên bản đồ.
+// Muốn nghe lại điểm cũ thì bấm điểm đó trên bản đồ. Điểm chưa có file âm thanh thì chỉ mở thẻ (thẻ hiện chữ), vẫn tính là đã tự phát.
 function autoPlay(id) {
   state.played.add(id);
   openPanel(id);
   if (state.mode !== 'read') startPlay(id);
 }
 
+// Điểm nghe được khi có file mp3 và lần phát trước không lỗi.
+const canListen = (poi) => !!poi?.audioUrl && !state.audioBroken.has(poi.id);
+
 function startPlay(id) {
   const poi = poiById(id);
-  if (!poi?.text) return;
+  if (!canListen(poi)) return;
   openPanel(id);
   trackEvent(id, 'play');
-  player.play(id, splitSentences(poi.text), state.lang);
+  player.play(id, poi.audioUrl);
 }
 
 // ---------- Giữ màn hình sáng ----------
@@ -479,14 +433,11 @@ document.addEventListener('visibilitychange', () => {
 // ---------- Điều khiển ----------
 
 for (const button of document.querySelectorAll('#seg-mode button')) {
-  button.onclick = async () => {
+  button.onclick = () => {
     state.mode = button.dataset.mode;
-    state.modeBeforeNoVoice = null; // người dùng tự chọn thì không tự đổi lại nữa
     state.notice = '';
     if (state.mode === 'read') player.stop();
-    // Đổi nút ngay; xét giọng có thể đợi danh sách giọng tới 4 giây (Android nạp chậm).
     render();
-    if (state.mode !== 'read') await checkVoice();
   };
 }
 
@@ -550,6 +501,7 @@ const DEGRADED_TEXT = {
   'poi-service': 'Tạm thời chưa tải được vị trí các điểm nên chưa chỉ đường và tự thuyết minh được. Chọn tên điểm bên dưới để nghe hoặc đọc.',
 };
 const NO_CONTENT_TEXT = 'Tạm thời chưa có nội dung thuyết minh cho điểm này.';
+const NO_AUDIO_TEXT = 'Điểm này chưa có âm thanh, bạn đọc nội dung ở trên.';
 
 function render() {
   if (!map) return;
@@ -582,8 +534,8 @@ function render() {
   $('geo-retry').hidden = !state.geoDenied || IN_APP_BROWSER || !navigator.geolocation;
   $('notice').textContent = state.notice;
   $('notice').hidden = !state.notice;
-  $('sim-voices').hidden = !SIM;
-  if (SIM) $('sim-voices').textContent = voiceDiagnostic();
+  $('sim-audio').hidden = !SIM;
+  if (SIM) $('sim-audio').textContent = audioDiagnostic();
   $('tiles-warn').hidden = !state.tilesFailed;
 
   for (const poi of state.pois) markers.get(poi.id)?.setTooltipContent(titleOf(poi));
@@ -599,16 +551,11 @@ function render() {
     $('nav').hidden && $('now-playing').hidden && $('poi-list').childElementCount === 0 && $('panel').hidden;
 }
 
-// Chỉ ở ?sim=1: cho biết máy có những giọng nào, để chẩn đoán khi điện thoại báo thiếu giọng.
-function voiceDiagnostic() {
-  const langs = voiceList();
-  if (langs === null) return 'Giọng đọc: trình duyệt không hỗ trợ.';
-  const status = voiceStatus(state.lang);
-  const forLang = { ok: 'có', missing: 'không', unknown: 'chưa rõ (máy chưa liệt kê giọng nào)' }[status];
-  const error = player.lastError ? `; lỗi đọc gần nhất: ${player.lastError}` : '';
-  const name = voiceName(state.lang);
-  const using = name ? ` (đang dùng: ${name})` : '';
-  return `Giọng đọc của máy: ${langs.length} giọng; giọng cho "${state.lang}": ${forLang}${using}${error}.`;
+// Chỉ ở ?sim=1: cho biết có bao nhiêu điểm nghe được (có file mp3), để chẩn đoán khi điện thoại không nghe được.
+function audioDiagnostic() {
+  const withAudio = state.pois.filter((p) => !!p.audioUrl).length;
+  const error = player.lastError ? `; lỗi phát gần nhất: ${player.lastError}` : '';
+  return `Âm thanh: ${withAudio}/${state.pois.length} điểm có file mp3 cho "${state.lang}"${error}.`;
 }
 
 function renderMapOverlay() {
@@ -685,8 +632,12 @@ function renderPanel() {
   const hasText = !!poi.text;
   $('panel-title').textContent = titleOf(poi);
   $('panel-text').textContent = hasText ? poi.text : NO_CONTENT_TEXT;
-  $('panel-text').hidden = hasText && state.mode === 'listen';
-  $('panel-controls').hidden = !hasText || state.mode === 'read';
+  const listenable = canListen(poi);
+  // Điểm chưa có file mp3 thì luôn hiện chữ (hình thức "Nghe" cũng vậy), kèm dòng báo chưa có âm thanh.
+  $('panel-text').hidden = hasText && listenable && state.mode === 'listen';
+  $('panel-controls').hidden = !listenable || state.mode === 'read';
+  $('panel-note').textContent = NO_AUDIO_TEXT;
+  $('panel-note').hidden = !hasText || listenable || state.mode === 'read';
 
   const mine = player.poiId === poi.id ? player.state : 'idle';
   $('btn-play').disabled = mine === 'playing';
