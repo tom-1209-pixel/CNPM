@@ -18,12 +18,16 @@ export function adminRouter({ poiServiceUrl, contentServiceUrl, analyticsService
   const router = express.Router();
   router.use(adminGuard(adminPassword), express.json({ limit: '60kb' }));
 
-  const call = (base, path, method = 'GET', body) =>
-    getJson(`${base}${path}`, timeoutMs, retryDelayMs, {
+  const call = (base, path, method = 'GET', body, timeout = timeoutMs) =>
+    getJson(`${base}${path}`, timeout, retryDelayMs, {
       method,
       headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPassword },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+  // Lưu nội dung kèm tạo mp3 (edge-tts mất vài giây, lần đầu có thể ~10 giây) nên chờ lâu hơn thời gian chờ thường.
+  const AUDIO_TIMEOUT_MS = Math.max(timeoutMs, 60000);
+  const saveContent = (poiId, lang, body) =>
+    call(contentServiceUrl, `/content/${encodeURIComponent(poiId)}/${encodeURIComponent(lang)}`, 'PUT', body, AUDIO_TIMEOUT_MS);
   // Nhật ký kiểu "trả lời trước, gửi sau": analytics-service hỏng thì chỉ mất dòng nhật ký, việc sửa vẫn xong.
   const log = (action, target, detail = '') =>
     call(analyticsServiceUrl, '/changes', 'POST', { action, target, detail }).catch((err) => console.error(`nhật ký: ${err.message}`));
@@ -47,7 +51,7 @@ export function adminRouter({ poiServiceUrl, contentServiceUrl, analyticsService
     const [pois, contents] = await Promise.all([call(poiServiceUrl, '/pois?all=1'), call(contentServiceUrl, '/content/all')]);
     res.json(pois.map((poi) => ({
       ...poi,
-      content: Object.fromEntries(contents.filter((c) => c.poiId === poi.id).map((c) => [c.lang, { title: c.title, text: c.text }])),
+      content: Object.fromEntries(contents.filter((c) => c.poiId === poi.id).map((c) => [c.lang, { title: c.title, text: c.text, audio: c.audio }])),
     })));
   }));
 
@@ -57,15 +61,17 @@ export function adminRouter({ poiServiceUrl, contentServiceUrl, analyticsService
     const { lat, lng, radius, content = {} } = req.body ?? {};
     const poi = await call(poiServiceUrl, '/pois', 'POST', { lat, lng, radius });
     let contentError = null;
+    let audioError = null;
     for (const [lang, c] of Object.entries(content)) {
       try {
-        await call(contentServiceUrl, `/content/${encodeURIComponent(poi.id)}/${encodeURIComponent(lang)}`, 'PUT', c);
+        const saved = await saveContent(poi.id, lang, c);
+        if (saved.audioError) audioError = `${lang}: ${saved.audioError}`;
       } catch (err) {
         contentError = err.body?.error ?? 'Chưa lưu được nội dung';
       }
     }
     log('Thêm điểm', poi.id, `${content.vi?.title ?? ''} · bán kính ${poi.radius} m`.replace(/^ · /, ''));
-    res.status(201).json({ ...poi, contentError });
+    res.status(201).json({ ...poi, contentError, audioError });
   }));
 
   router.put('/pois/:id', route(async (req, res) => {
@@ -93,9 +99,23 @@ export function adminRouter({ poiServiceUrl, contentServiceUrl, analyticsService
   }));
 
   router.put('/pois/:id/content/:lang', route(async (req, res) => {
-    const saved = await call(contentServiceUrl, `/content/${id(req)}/${encodeURIComponent(req.params.lang)}`, 'PUT', req.body ?? {});
+    const saved = await saveContent(req.params.id, req.params.lang, req.body ?? {});
     log('Sửa nội dung', req.params.id, `${req.params.lang}: ${saved.title}`);
     res.json(saved);
+  }));
+
+  // Tạo lại mp3 của một nội dung (lần lưu trước edge-tts lỗi, hoặc muốn tạo lại).
+  router.post('/pois/:id/content/:lang/audio', route(async (req, res) => {
+    const saved = await call(contentServiceUrl, `/content/${id(req)}/${encodeURIComponent(req.params.lang)}/audio`, 'POST', undefined, AUDIO_TIMEOUT_MS);
+    log('Tạo âm thanh', req.params.id, req.params.lang);
+    res.json(saved);
+  }));
+
+  // Tạo mp3 cho mọi nội dung chưa có hoặc đã cũ: { created: ['poi-1/vi'], failed: [{ id, error }] }.
+  router.post('/audio/rebuild', route(async (req, res) => {
+    const result = await call(contentServiceUrl, '/content/audio/rebuild', 'POST', undefined, Math.max(timeoutMs, 180000));
+    if (result.created.length) log('Tạo âm thanh', `${result.created.length} nội dung`, result.failed.length ? `${result.failed.length} lỗi` : '');
+    res.json(result);
   }));
 
   router.delete('/pois/:id/content/:lang', route(async (req, res) => {

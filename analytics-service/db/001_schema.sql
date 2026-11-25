@@ -4,7 +4,7 @@ CREATE TABLE visits (
   id            uuid PRIMARY KEY,
   lang          text NOT NULL,
   started_at    timestamptz NOT NULL DEFAULT now(),
-  last_seen_at  timestamptz NOT NULL DEFAULT now() -- trang báo "còn mở" mỗi 60 giây
+  last_seen_at  timestamptz NOT NULL DEFAULT now() -- trang báo "còn mở" mỗi 30 giây
 );
 
 CREATE INDEX visits_started_at_idx ON visits (started_at);

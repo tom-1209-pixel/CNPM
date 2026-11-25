@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [poi-service, content-service, analytics-service, gateway]
+    # Một Postgres chứa 3 database poi, content, analytics, để test DB và test dữ liệu chéo của gateway luôn chạy trong CI.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGPASSWORD: postgres
+      POI_DATABASE_URL: postgres://postgres:postgres@localhost:5432/poi
+      CONTENT_DATABASE_URL: postgres://postgres:postgres@localhost:5432/content
+      ANALYTICS_DATABASE_URL: postgres://postgres:postgres@localhost:5432/analytics
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: '*/package-lock.json'
+      - name: Tạo 3 database và chạy migrate
+        working-directory: .
+        run: |
+          psql -h localhost -U postgres -c 'CREATE DATABASE poi' -c 'CREATE DATABASE content' -c 'CREATE DATABASE analytics'
+          (cd poi-service && npm ci && DATABASE_URL=$POI_DATABASE_URL npm run migrate)
+          (cd content-service && npm ci && DATABASE_URL=$CONTENT_DATABASE_URL npm run migrate)
+          (cd analytics-service && npm ci && DATABASE_URL=$ANALYTICS_DATABASE_URL npm run migrate)
+      - run: npm ci
+      - name: npm test
+        run: |
+          case "${{ matrix.service }}" in
+            poi-service) export DATABASE_URL=$POI_DATABASE_URL ;;
+            content-service) export DATABASE_URL=$CONTENT_DATABASE_URL ;;
+            analytics-service) export DATABASE_URL=$ANALYTICS_DATABASE_URL ;;
+          esac
+          npm test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build
+
+  # CD tối thiểu: khi push vào main thì đẩy image lên GitHub Container Registry.
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [poi-service, content-service, analytics-service, gateway]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Tên image Docker phải viết thường, mà tên repo có thể có chữ hoa (vd CNPM).
+      - id: image
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image.outputs.repo }}/${{ matrix.service }}:latest
+            ghcr.io/${{ steps.image.outputs.repo }}/${{ matrix.service }}:${{ github.sha }}

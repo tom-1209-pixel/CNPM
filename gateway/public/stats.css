@@ -1,0 +1,52 @@
+/* Trang thống kê: dùng lại biến màu, font và nút của style.css. */
+.stats-page { overflow-y: auto; }
+.stats { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+.stats-head h1 { font-size: 1.5rem; color: var(--brand); }
+.muted { color: var(--muted); font-weight: 400; }
+/* .card của màn chào bị giới hạn chiều rộng và căn giữa: ở đây cho rộng hết cột */
+.stats .card { flex: none; display: block; max-width: none; width: auto; margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 16px; }
+
+.stats .stats-login { display: flex; flex-direction: column; gap: 10px; max-width: 380px; }
+.stats-login label { font-weight: 600; }
+.stats input, .stats select { font: inherit; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+.stats input:focus, .stats select:focus { outline: 3px solid #93c5fd; outline-offset: 1px; }
+.stats-error { color: #b91c1c; }
+
+#report { display: flex; flex-direction: column; gap: 16px; }
+#report[hidden] { display: none; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.tile-label { color: var(--muted); font-size: .85rem; }
+.tile strong { font-size: 1.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.tile-note { color: var(--muted); font-size: .8rem; }
+
+/* Khung log kiểu trang Logs của Render: thanh công cụ, rồi từng dòng chữ đơn cách theo ngày. */
+.stats .log { padding: 0; overflow: hidden; }
+.log-toolbar { display: flex; gap: 8px; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); }
+.log-toolbar input { flex: 1; min-width: 0; }
+.live { flex: none; font-size: .85rem; font-weight: 600; color: var(--ok); white-space: nowrap; }
+.live.off { color: var(--muted); }
+.log-meta { display: flex; justify-content: space-between; gap: 12px; padding: 6px 16px; font-size: .8rem; border-bottom: 1px solid var(--border); }
+.log-list { max-height: 62vh; overflow-y: auto; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .85rem; background: #fafbfd; }
+.log-day { position: sticky; top: 0; padding: 6px 16px; background: #eef2fa; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+.log-row { display: grid; grid-template-columns: 76px 68px 110px 1fr auto; gap: 12px; align-items: baseline; padding: 6px 16px; border-bottom: 1px solid #edf0f6; }
+.log-row.new { animation: flash 2.5s ease-out; }
+@keyframes flash { from { background: #dbeafe; } to { background: transparent; } }
+.log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.log-code { color: #7c3aed; }
+.log-stay { font-variant-numeric: tabular-nums; }
+.log-state { white-space: nowrap; color: var(--muted); }
+.log-state.on { color: var(--ok); font-weight: 600; }
+.log-empty { padding: 24px 16px; color: var(--muted); font-family: var(--font); }
+
+@media (max-width: 720px) {
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .log-toolbar { flex-wrap: wrap; }
+  .log-toolbar input { flex-basis: 100%; order: 3; }
+  .log-row { grid-template-columns: 70px 1fr auto; row-gap: 2px; }
+  .log-code { grid-column: 2; grid-row: 1; }
+  .log-lang { grid-column: 1; grid-row: 2; }
+  .log-stay { grid-column: 2; grid-row: 2; }
+  .log-state { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+}

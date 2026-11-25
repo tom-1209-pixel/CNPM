@@ -1,0 +1,45 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Ban do code" id="codemap">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="client" value="&lt;b&gt;Trình duyệt (gateway/public)&lt;/b&gt;&lt;br&gt;&lt;br&gt;js/app.js — trang du khách&lt;br&gt;js/geo.js — khoảng cách, hướng, vào bán kính&lt;br&gt;js/speech.js — phát mp3&lt;br&gt;js/basemap.js — nền bản đồ&lt;br&gt;js/wake.js — đánh thức service&lt;br&gt;&lt;br&gt;js/admin.js, admin-pois.js, stats.js — trang quản lý" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="300" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="gw" value="&lt;b&gt;gateway :3000&lt;/b&gt; (không có DB)&lt;br&gt;&lt;br&gt;src/app.js — /api/pois, /audio, /visits, /events, /stats&lt;br&gt;src/admin.js — /api/admin/*&lt;br&gt;src/http.js — gọi service, thử lại&lt;br&gt;src/config.js — biến môi trường" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="450" y="280" width="300" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="poi" value="&lt;b&gt;poi-service :3001&lt;/b&gt;&lt;br&gt;&lt;br&gt;src/app.js — /pois&lt;br&gt;src/geo.js — chồng bán kính, dời bộ điểm&lt;br&gt;src/store.js — SQL bảng pois" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="860" y="60" width="300" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="con" value="&lt;b&gt;content-service :3002&lt;/b&gt;&lt;br&gt;&lt;br&gt;src/app.js — /languages, /content, /audio&lt;br&gt;src/tts.js — tạo mp3 (Edge TTS)&lt;br&gt;src/store.js — SQL languages, contents, audios" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="860" y="300" width="300" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="ana" value="&lt;b&gt;analytics-service :3003&lt;/b&gt;&lt;br&gt;&lt;br&gt;src/app.js — /visits, /events, /changes, /stats&lt;br&gt;src/store.js — SQL visits, poi_events, changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="860" y="540" width="300" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="dbp" value="DB poi&lt;br&gt;pois" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="55" width="100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="dbc" value="DB content&lt;br&gt;languages&lt;br&gt;contents&lt;br&gt;audios" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="295" width="100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="dba" value="DB analytics&lt;br&gt;visits&lt;br&gt;poi_events&lt;br&gt;changes" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="535" width="100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge" value="Microsoft Edge TTS&lt;br&gt;(dịch vụ ngoài)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="880" y="750" width="260" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="/api/*" style="endArrow=classic;html=1;" edge="1" parent="1" source="client" target="gw"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="GET /pois" style="endArrow=classic;html=1;" edge="1" parent="1" source="gw" target="poi"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="GET /content, /audio" style="endArrow=classic;html=1;" edge="1" parent="1" source="gw" target="con"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="POST /visits, /events (202 trước)" style="endArrow=classic;html=1;" edge="1" parent="1" source="gw" target="ana"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="endArrow=classic;html=1;" edge="1" parent="1" source="poi" target="dbp"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="endArrow=classic;html=1;" edge="1" parent="1" source="con" target="dbc"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" style="endArrow=classic;html=1;" edge="1" parent="1" source="ana" target="dba"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="tạo mp3" style="endArrow=classic;html=1;dashed=1;" edge="1" parent="1" source="con" target="edge"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

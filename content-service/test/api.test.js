@@ -1,6 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
+import { textHash } from '../src/tts.js';
 
 // Store giả trong bộ nhớ: test API không cần DB (DB có test riêng ở db.test.js).
 const PASSWORD = 'quanly';
@@ -27,7 +28,27 @@ const fakeStore = {
     content = content.filter((c) => !(c.poiId === poiId && (!lang || c.lang === lang)));
     return before - content.length;
   },
+  getContent: async (poiId, lang) => content.find((c) => c.poiId === poiId && c.lang === lang) ?? null,
+  saveAudio: async (poiId, lang, hash, mp3) => {
+    audios.set(`${poiId}/${lang}`, { textHash: hash, mp3 });
+  },
+  getAudio: async (poiId, lang) => {
+    const item = content.find((c) => c.poiId === poiId && c.lang === lang);
+    const audio = audios.get(`${poiId}/${lang}`);
+    return item && audio && audio.textHash === textHash(item.text) ? audio : null;
+  },
+  listMissingAudio: async () => content.filter((c) => audios.get(`${c.poiId}/${c.lang}`)?.textHash !== textHash(c.text)),
   checkDb: async () => {},
+};
+// Dịch vụ giọng đọc giả: không gọi mạng. ttsFails = true thì mọi lần tạo đều lỗi.
+let audios;
+let ttsFails;
+const fakeTts = {
+  hasVoice: (lang) => lang !== 'xx',
+  synthesize: async (text, lang) => {
+    if (ttsFails) throw new Error('edge-tts bị chặn');
+    return Buffer.from(`mp3:${lang}:${text}`);
+  },
 };
 const servers = [];
 const listen = (store, options) => {
@@ -43,10 +64,14 @@ const send = (base, method, path, body, password = PASSWORD) =>
   });
 
 let base;
+let ttsBase;
 before(() => {
   base = listen(fakeStore, { adminPassword: PASSWORD });
+  ttsBase = listen(fakeStore, { adminPassword: PASSWORD, tts: fakeTts });
 });
 beforeEach(() => {
+  audios = new Map();
+  ttsFails = false;
   content = [
     { poiId: 'poi-1', lang: 'vi', title: 'Điểm 1', text: 'Nội dung.' },
     { poiId: 'poi-1', lang: 'en', title: 'Stop 1', text: 'Content.' },
@@ -137,4 +162,64 @@ test('DB lỗi thì /languages và /content trả 500, /health vẫn ok', async 
     assert.equal(typeof (await res.json()).error, 'string');
   }
   assert.equal((await fetch(`${broken}/health`)).status, 200);
+});
+
+test('PUT /content có tts: lưu chữ rồi tạo mp3; GET .../audio trả file; sửa chữ mà chưa tạo lại thì 404', async () => {
+  const res = await send(ttsBase, 'PUT', '/content/poi-2/en', { title: 'Stop 2', text: 'Content 2.' });
+  assert.deepEqual(await res.json(), { poiId: 'poi-2', lang: 'en', title: 'Stop 2', text: 'Content 2.', audio: true });
+  const audio = await fetch(`${ttsBase}/content/poi-2/en/audio`);
+  assert.equal(audio.status, 200);
+  assert.equal(audio.headers.get('content-type'), 'audio/mpeg');
+  assert.equal(Buffer.from(await audio.arrayBuffer()).toString(), 'mp3:en:Content 2.');
+  assert.equal((await fetch(`${ttsBase}/content/poi-2/en/audio`, { headers: { 'If-None-Match': audio.headers.get('etag') } })).status, 304);
+  ttsFails = true;
+  await send(ttsBase, 'PUT', '/content/poi-2/en', { title: 'Stop 2', text: 'Đã sửa.' });
+  assert.equal((await fetch(`${ttsBase}/content/poi-2/en/audio`)).status, 404, 'file cũ không còn khớp chữ');
+});
+
+test('PUT /content chỉ đổi tên (nội dung giữ nguyên) thì giữ mp3 cũ, không gọi edge-tts', async () => {
+  await send(ttsBase, 'PUT', '/content/poi-2/en', { title: 'Stop 2', text: 'Content 2.' });
+  ttsFails = true; // nếu còn gọi edge-tts thì sẽ báo audioError
+  const body = await (await send(ttsBase, 'PUT', '/content/poi-2/en', { title: 'Tên mới', text: 'Content 2.' })).json();
+  assert.equal(body.title, 'Tên mới');
+  assert.equal(body.audio, true);
+  assert.equal(body.audioError, undefined);
+});
+
+test('PUT /content: tạo mp3 lỗi vẫn lưu chữ và báo audioError', async () => {
+  ttsFails = true;
+  const res = await send(ttsBase, 'PUT', '/content/poi-2/en', { title: 'Stop 2', text: 'Content 2.' });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.audio, false);
+  assert.match(body.audioError, /bị chặn/);
+  assert.ok(content.some((c) => c.poiId === 'poi-2' && c.lang === 'en'), 'chữ đã được lưu');
+});
+
+test('PUT /content không có tts thì giữ nguyên dạng cũ (không có trường audio)', async () => {
+  const body = await (await send(base, 'PUT', '/content/poi-2/en', { title: 'Stop 2', text: 'Content 2.' })).json();
+  assert.deepEqual(Object.keys(body), ['poiId', 'lang', 'title', 'text']);
+});
+
+test('GET .../audio không cần mật khẩu; chưa có thì 404', async () => {
+  assert.equal((await fetch(`${ttsBase}/content/poi-1/vi/audio`)).status, 404);
+});
+
+test('POST .../audio tạo lại một nội dung; không có thì 404; tts lỗi thì 502; cần mật khẩu', async () => {
+  assert.equal((await send(ttsBase, 'POST', '/content/poi-1/vi/audio', undefined, '')).status, 401);
+  assert.equal((await send(ttsBase, 'POST', '/content/poi-9/vi/audio')).status, 404);
+  assert.equal((await send(ttsBase, 'POST', '/content/poi-1/vi/audio')).status, 200);
+  assert.equal((await fetch(`${ttsBase}/content/poi-1/vi/audio`)).status, 200);
+  ttsFails = true;
+  assert.equal((await send(ttsBase, 'POST', '/content/poi-2/vi/audio')).status, 502);
+  assert.equal((await send(base, 'POST', '/content/poi-1/vi/audio')).status, 503, 'chưa bật tts');
+});
+
+test('POST /content/audio/rebuild chỉ tạo phần còn thiếu; ngôn ngữ chưa có giọng thì báo, không dừng', async () => {
+  content.push({ poiId: 'poi-3', lang: 'xx', title: 'x', text: 'y' });
+  await send(ttsBase, 'POST', '/content/poi-1/vi/audio');
+  const body = await (await send(ttsBase, 'POST', '/content/audio/rebuild')).json();
+  assert.deepEqual(body.created, ['poi-1/en', 'poi-2/vi']);
+  assert.deepEqual(body.failed.map((f) => f.id), ['poi-3/xx']);
+  assert.deepEqual((await (await send(ttsBase, 'POST', '/content/audio/rebuild')).json()).created, []);
 });

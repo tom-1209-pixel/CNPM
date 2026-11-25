@@ -62,11 +62,17 @@ export function createApp({
     const wantedById = new Map(wanted.map((c) => [c.poiId, c]));
     const fallbackById = new Map(fallback.map((c) => [c.poiId, c]));
     const contentFor = (id) => wantedById.get(id) ?? fallbackById.get(id);
+    // Chữ và âm thanh luôn cùng một ngôn ngữ: thiếu bản ở ngôn ngữ chọn thì cả hai lấy từ bản vi. null = chưa có file mp3.
+    const shown = (content) => ({
+      title: content.title,
+      text: content.text,
+      audioUrl: content.audio ? `/api/audio/${encodeURIComponent(content.poiId)}/${encodeURIComponent(content.lang)}` : null,
+    });
 
     if (poisResult.status === 'rejected') {
       // không có tọa độ: liệt kê các POI có bản vi (cùng quy tắc bỏ POI thiếu vi như khi ghép đủ)
       const viContent = lang === DEFAULT_LANG ? wanted : fallback;
-      const items = viContent.map((c) => ({ id: c.poiId, title: contentFor(c.poiId).title, text: contentFor(c.poiId).text }));
+      const items = viContent.map((c) => ({ id: c.poiId, ...shown(contentFor(c.poiId)) }));
       res.set('X-Degraded', 'poi-service').json(items);
       return;
     }
@@ -74,9 +80,38 @@ export function createApp({
     const merged = [];
     for (const poi of poisResult.value) {
       const content = contentFor(poi.id);
-      if (content) merged.push({ ...poi, title: content.title, text: content.text });
+      if (content) merged.push({ ...poi, ...shown(content) });
     }
     res.json(merged);
+  });
+
+  // File mp3 thuyết minh: chuyển tiếp từ content-service (file nằm trong DB của nó). Giữ ETag để máy du khách nhận 304.
+  app.get('/api/audio/:poiId/:lang', async (req, res) => {
+    try {
+      const headers = req.get('If-None-Match') ? { 'If-None-Match': req.get('If-None-Match') } : {};
+      const upstream = await fetch(
+        `${contentServiceUrl}/content/${encodeURIComponent(req.params.poiId)}/${encodeURIComponent(req.params.lang)}/audio`,
+        { headers, signal: AbortSignal.timeout(timeoutMs) },
+      );
+      if (upstream.status === 404) return res.status(404).json({ error: 'Chưa có âm thanh' });
+      if (!upstream.ok && upstream.status !== 304) throw new Error(`content-service trả về ${upstream.status}`);
+      res.set({ 'Cache-Control': 'no-cache', ETag: upstream.headers.get('etag') ?? '' });
+      if (upstream.status === 304) return res.status(304).end();
+      const mp3 = Buffer.from(await upstream.arrayBuffer());
+      res.set({ 'Content-Type': 'audio/mpeg', 'Accept-Ranges': 'bytes' });
+      // Safari (iPhone) hỏi từng đoạn (Range) khi phát âm thanh: trả 206 cho đúng đoạn nó hỏi.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req.get('Range') ?? '');
+      if (range && (range[1] || range[2])) {
+        const start = range[1] === '' ? Math.max(mp3.length - Number(range[2]), 0) : Number(range[1]);
+        const end = range[1] === '' || range[2] === '' ? mp3.length - 1 : Math.min(Number(range[2]), mp3.length - 1);
+        if (start > end || start >= mp3.length) return res.status(416).set('Content-Range', `bytes */${mp3.length}`).end();
+        return res.status(206).set('Content-Range', `bytes ${start}-${end}/${mp3.length}`).send(mp3.subarray(start, end + 1));
+      }
+      return res.send(mp3);
+    } catch (err) {
+      console.error(`âm thanh: ${err.message}`);
+      return res.status(502).json({ error: 'Không lấy được âm thanh' });
+    }
   });
 
   // Thống kê lượt truy cập: trả 202 ngay rồi mới chuyển tiếp sang analytics-service ở phía sau,
